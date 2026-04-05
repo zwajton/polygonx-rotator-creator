@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rotator Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+/* ── THEME VARIABLES ─────────────────────────────────────────── */
+:root{
+  --bg:#0d0f14;--surface:#151820;--surface2:#1c2030;--border:#2a3045;
+  --accent:#f0c040;--accent2:#40c0f0;--danger:#f04060;--green:#40f0a0;
+  --text:#e8eaf0;--muted:#6070a0;--radius:6px;
+  --fs:1rem; /* font-size scale */
+}
+body.light{
+  --bg:#f0f2f7;--surface:#ffffff;--surface2:#e8eaf0;--border:#cdd0db;
+  --text:#1a1d28;--muted:#7080a0;--accent:#d4a000;--accent2:#1090c0;
+  --danger:#d03050;--green:#10a060;
+}
+
+/* ── BASE ────────────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:var(--fs);}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;transition:background .2s,color .2s;}
+
+/* ── HEADER ─────────────────────────────────────────────────── */
+header{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;}
+header h1{font-size:clamp(14px,1.1rem,20px);font-weight:800;letter-spacing:.05em;color:var(--accent);white-space:nowrap;}
+.header-tools{display:flex;align-items:center;gap:6px;margin-left:auto;}
+
+/* search bar in header */
+.search-wrap{position:relative;flex:1;min-width:0;max-width:340px;}
+#citySearch{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text);font-family:'Space Mono',monospace;font-size:.75rem;padding:5px 12px 5px 30px;outline:none;transition:border-color .15s;}
+#citySearch:focus{border-color:var(--accent);}
+.search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:12px;pointer-events:none;color:var(--muted);}
+#searchDropdown{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);z-index:99999;max-height:260px;overflow-y:auto;display:none;box-shadow:0 8px 24px rgba(0,0,0,.4);min-width:280px;}
+#searchDropdown.open{display:block;}
+.sdrop-item{padding:8px 12px;cursor:pointer;font-family:'Space Mono',monospace;font-size:.7rem;border-bottom:1px solid var(--border);transition:background .1s;}
+.sdrop-item:last-child{border-bottom:none;}
+.sdrop-item:hover{background:var(--surface2);}
+.sdrop-item .sdi-name{color:var(--text);}
+.sdrop-item .sdi-coords{color:var(--muted);font-size:.65rem;}
+.sdrop-section{padding:4px 12px;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:var(--bg);border-bottom:1px solid var(--border);}
+
+/* icon toggle buttons */
+.hbtn{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--muted);padding:5px 9px;cursor:pointer;font-size:.8rem;transition:all .15s;white-space:nowrap;font-family:'Syne',sans-serif;font-weight:600;}
+.hbtn:hover{border-color:var(--accent);color:var(--accent);}
+.hbtn.active{background:var(--accent);color:#0d0f14;border-color:var(--accent);}
+
+/* font size control */
+.fs-ctrl{display:flex;align-items:center;gap:4px;}
+.fs-btn{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);width:26px;height:26px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;font-weight:700;transition:all .15s;}
+.fs-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ── LAYOUT ──────────────────────────────────────────────────── */
+.layout{display:flex;flex:1;overflow:hidden;}
+
+/* ── SIDEBAR ─────────────────────────────────────────────────── */
+.sidebar{width:clamp(280px,22vw,340px);flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:background .2s;}
+.sidebar-scroll{flex:1;overflow-y:auto;display:flex;flex-direction:column;}
+.sidebar-scroll::-webkit-scrollbar{width:4px;}
+.sidebar-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.ss{padding:11px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.ss h2{font-size:.65rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:9px;}
+.field{margin-bottom:7px;}
+.field label{display:block;font-size:.68rem;color:var(--muted);margin-bottom:3px;font-family:'Space Mono',monospace;}
+.field input,.field textarea,.field select{
+  width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);
+  color:var(--text);font-family:'Space Mono',monospace;font-size:.75rem;padding:5px 8px;outline:none;transition:border-color .15s;
+}
+.field input:focus,.field textarea:focus{border-color:var(--accent);}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+
+/* mode toggle */
+.mode-toggle{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:7px;}
+.mode-toggle button{flex:1;padding:6px 3px;background:none;border:none;border-right:1px solid var(--border);color:var(--muted);font-family:'Syne',sans-serif;font-size:.72rem;font-weight:600;cursor:pointer;transition:all .15s;}
+.mode-toggle button:last-child{border-right:none;}
+.mode-toggle button.active{background:var(--accent);color:#0d0f14;}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--radius);font-family:'Syne',sans-serif;font-size:.75rem;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap;}
+.btn-primary{background:var(--accent);color:#0d0f14;}
+.btn-primary:hover{filter:brightness(1.1);}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+.btn-secondary:hover{border-color:var(--accent2);color:var(--accent2);}
+.btn-danger{background:transparent;color:var(--danger);border:1px solid var(--danger);}
+.btn-danger:hover{background:var(--danger);color:#fff;}
+.btn-sm{padding:3px 8px;font-size:.68rem;}
+.btn-group{display:flex;gap:5px;flex-wrap:wrap;}
+
+/* ── POINTS LIST ─────────────────────────────────────────────── */
+.points-list{padding:6px;}
+.point-item{display:flex;align-items:flex-start;gap:7px;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:4px;transition:border-color .15s;cursor:pointer;}
+.point-item:hover{border-color:var(--accent2);}
+.point-item.active{border-color:var(--accent);}
+.point-num{font-family:'Space Mono',monospace;font-size:.68rem;font-weight:700;color:var(--accent);width:18px;text-align:center;flex-shrink:0;padding-top:1px;}
+.point-info{flex:1;min-width:0;}
+.point-coords{font-family:'Space Mono',monospace;font-size:.68rem;color:var(--text);line-height:1.5;}
+.point-meta{font-family:'Space Mono',monospace;font-size:.62rem;color:var(--muted);line-height:1.6;margin-top:2px;}
+.point-meta .utc{color:var(--accent2);}
+.point-meta .local{color:var(--green);}
+.point-meta .r{color:var(--accent);}
+.point-actions{display:flex;gap:2px;flex-shrink:0;}
+.icon-btn{background:none;border:none;cursor:pointer;color:var(--muted);padding:2px;border-radius:3px;font-size:12px;transition:color .15s;display:flex;align-items:center;}
+.icon-btn:hover{color:var(--danger);}
+.icon-btn.up:hover,.icon-btn.down:hover{color:var(--accent2);}
+.empty-hint{text-align:center;padding:24px 14px;color:var(--muted);font-size:.72rem;line-height:1.9;}
+
+/* inline radius editor in point card */
+.point-radius-row{display:flex;align-items:center;gap:5px;margin-top:4px;}
+.point-radius-row input{width:70px;padding:2px 6px;font-size:.65rem;}
+.point-radius-row span{font-size:.62rem;color:var(--muted);}
+
+/* ── STATS ───────────────────────────────────────────────────── */
+.stats{padding:8px 14px;background:var(--surface2);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(3,1fr);gap:6px;flex-shrink:0;}
+.stat{text-align:center;}
+.stat-val{font-family:'Space Mono',monospace;font-size:.9rem;font-weight:700;color:var(--accent);}
+.stat-label{font-size:.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+
+/* ── MAP ─────────────────────────────────────────────────────── */
+#map{width:100%;height:100%;}
+.leaflet-container{background:var(--bg);}
+.leaflet-control-zoom a{background:var(--surface2)!important;color:var(--text)!important;border-color:var(--border)!important;}
+.leaflet-control-zoom a:hover{background:var(--surface)!important;color:var(--accent)!important;}
+
+/* radius drag handle on map */
+.radius-handle{cursor:ew-resize!important;}
+
+/* ── TOAST ───────────────────────────────────────────────────── */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--accent);color:#0d0f14;font-family:'Space Mono',monospace;font-size:.72rem;font-weight:700;padding:9px 16px;border-radius:var(--radius);z-index:9999;opacity:0;transform:translateY(10px);transition:all .2s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateY(0);}
+.toast.error{background:var(--danger);color:#fff;}
+
+.map-hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(13,15,20,.82);border:1px solid var(--border);color:var(--muted);font-family:'Space Mono',monospace;font-size:.65rem;padding:4px 12px;border-radius:20px;z-index:1000;pointer-events:none;backdrop-filter:blur(4px);}
+body.light .map-hint{background:rgba(240,242,247,.9);}
+.step-warning{font-family:'Space Mono',monospace;font-size:.62rem;color:var(--danger);margin-top:4px;}
+
+/* ── MODAL ───────────────────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:5000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s;}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;width:300px;padding:16px;transform:translateY(10px);transition:transform .2s;max-height:92vh;overflow-y:auto;}
+.modal-overlay.open .modal{transform:translateY(0);}
+.modal h3{font-size:.8rem;font-weight:800;color:var(--accent);margin-bottom:12px;}
+
+.time-display{background:var(--surface2);border-radius:8px;padding:10px;text-align:center;margin-bottom:10px;border:1px solid var(--border);}
+.time-big{font-family:'Space Mono',monospace;font-size:2.4rem;font-weight:700;color:var(--text);letter-spacing:.05em;}
+.time-big span{color:var(--accent);}
+.time-sub{font-family:'Space Mono',monospace;font-size:.62rem;color:var(--muted);margin-top:2px;}
+
+.tab-row{display:flex;gap:4px;margin-bottom:9px;}
+.tab-btn{flex:1;padding:4px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--muted);font-family:'Syne',sans-serif;font-size:.68rem;font-weight:600;cursor:pointer;text-align:center;transition:all .15s;}
+.tab-btn.active{background:var(--accent);color:#0d0f14;border-color:var(--accent);}
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+
+.clock-mode-row{display:flex;gap:5px;margin-bottom:7px;}
+.clock-mode-btn{padding:3px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--muted);font-family:'Space Mono',monospace;font-size:.75rem;font-weight:700;cursor:pointer;transition:all .15s;}
+.clock-mode-btn.active{background:var(--accent);color:#0d0f14;border-color:var(--accent);}
+
+.clock-wrap{width:196px;height:196px;margin:0 auto 8px;}
+.clock-svg{width:196px;height:196px;cursor:pointer;user-select:none;-webkit-user-select:none;}
+
+.tz-box{background:var(--bg);border-radius:6px;padding:8px 10px;font-family:'Space Mono',monospace;font-size:.68rem;line-height:1.9;margin-bottom:10px;border:1px solid var(--border);}
+.tz-row{display:flex;justify-content:space-between;}
+.tz-lbl{color:var(--muted);}
+.tz-utc{color:var(--accent2);}
+.tz-local{color:var(--green);}
+.tz-min{color:var(--accent);}
+
+.modal-btns{display:flex;gap:6px;justify-content:flex-end;}
+.unix-row{display:flex;gap:5px;align-items:flex-end;margin-bottom:7px;}
+.unix-row .field{flex:1;margin-bottom:0;}
+
+/* ── HOTSPOT PANEL ───────────────────────────────────────────── */
+.hotspot-panel{position:absolute;top:10px;right:10px;z-index:1000;width:220px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);display:none;}
+.hotspot-panel.open{display:block;}
+.hp-header{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);}
+.hp-header span{font-size:.72rem;font-weight:700;color:var(--accent);}
+.hp-search{padding:7px 10px;border-bottom:1px solid var(--border);}
+.hp-search input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'Space Mono',monospace;font-size:.68rem;padding:4px 8px;outline:none;}
+.hp-search input:focus{border-color:var(--accent);}
+.hp-list{max-height:280px;overflow-y:auto;}
+.hp-list::-webkit-scrollbar{width:3px;}
+.hp-list::-webkit-scrollbar-thumb{background:var(--border);}
+.hp-item{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s;}
+.hp-item:last-child{border-bottom:none;}
+.hp-item:hover{background:var(--surface2);}
+.hp-item-add{font-size:10px;color:var(--muted);flex-shrink:0;}
+.hp-item:hover .hp-item-add{color:var(--accent);}
+.hp-name{font-family:'Space Mono',monospace;font-size:.65rem;color:var(--text);line-height:1.4;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⬡ ROTATOR BUILDER</h1>
+
+  <!-- City search -->
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="citySearch" placeholder="Search city or coords…" autocomplete="off">
+  </div>
+
+  <div class="header-tools">
+    <!-- Hotspots -->
+    <button class="hbtn" id="hotspotBtn" onclick="toggleHotspots()" title="Favorite locations">📍 Hotspots</button>
+    <!-- Dark/Light -->
+    <button class="hbtn" id="themeBtn" onclick="toggleTheme()" title="Toggle dark/light">🌙</button>
+    <!-- Font size -->
+    <div class="fs-ctrl" title="Font size">
+      <button class="fs-btn" onclick="changeFontSize(-1)">A-</button>
+      <button class="fs-btn" onclick="changeFontSize(1)">A+</button>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-scroll">
+
+      <!-- Settings -->
+      <div class="ss">
+        <h2>Settings</h2>
+        <div class="row2">
+          <div class="field">
+            <label>Default radius (m)</label>
+            <input type="number" id="shardRadius" value="240" min="50" max="50000" step="10">
+          </div>
+          <div class="field" id="intervalField">
+            <label>Interval (min)</label>
+            <input type="number" id="interval" value="4" min="1" max="1440">
+          </div>
+        </div>
+        <div class="field">
+          <label>Timing mode</label>
+          <div class="mode-toggle">
+            <button id="modeInterval" class="active" onclick="setMode('interval')">⏱ Interval</button>
+            <button id="modeClock" onclick="setMode('clock')">🕐 Clock (UTC)</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Geofence center lat</label>
+          <input type="number" id="centerLat" value="35.641800" step="0.000001">
+        </div>
+        <div class="field">
+          <label>Geofence center lon</label>
+          <input type="number" id="centerLon" value="139.861500" step="0.000001">
+        </div>
+        <div class="field">
+          <label>Geofence boundary radius (m)</label>
+          <input type="number" id="geoRadius" value="2000" min="100" max="500000" step="100">
+        </div>
+      </div>
+
+      <!-- Paste coords -->
+      <div class="ss">
+        <h2>Paste Coordinates</h2>
+        <div class="field">
+          <label>lat,lon — one per line</label>
+          <textarea id="pasteCoords" rows="3" placeholder="35.640153,139.868965&#10;35.641023,139.866672"></textarea>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-secondary btn-sm" onclick="pasteAdd()">+ Add</button>
+          <button class="btn btn-secondary btn-sm" onclick="pasteReplace()">↺ Replace all</button>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="ss">
+        <h2>Actions</h2>
+        <div class="btn-group">
+          <label class="btn btn-secondary btn-sm" style="cursor:pointer">
+            📂 Load JSON
+            <input type="file" id="fileInput" accept=".json" style="display:none">
+          </label>
+          <button class="btn btn-primary btn-sm" onclick="exportJSON()">⬇ Export</button>
+          <button class="btn btn-danger btn-sm" onclick="clearAll()">✕ Clear</button>
+        </div>
+        <div id="stepWarning" class="step-warning" style="display:none"></div>
+      </div>
+
+      <!-- Points -->
+      <div class="ss" style="flex:1;border-bottom:none;padding-bottom:4px;">
+        <h2>Points</h2>
+        <div class="points-list" id="pointsList">
+          <div class="empty-hint">Click the map to add points,<br>search a city above,<br>or use Hotspots 📍</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-val" id="statPoints">0</div><div class="stat-label">Points</div></div>
+      <div class="stat"><div class="stat-val" id="statSweep">–</div><div class="stat-label">Min/sweep</div></div>
+      <div class="stat"><div class="stat-val" id="statLaps">–</div><div class="stat-label">Sweeps/day</div></div>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div style="flex:1;position:relative;display:flex;flex-direction:column;">
+    <div id="map" style="flex:1;"></div>
+    <div class="map-hint" id="mapHint">Click the map to add a point · Drag circle edge to resize radius</div>
+
+    <!-- Hotspot panel -->
+    <div class="hotspot-panel" id="hotspotPanel">
+      <div class="hp-header">
+        <span>📍 Hotspots</span>
+        <button class="icon-btn" onclick="toggleHotspots()">✕</button>
+      </div>
+      <div class="hp-search">
+        <input type="text" id="hpSearch" placeholder="Filter…" oninput="filterHotspots(this.value)">
+      </div>
+      <div class="hp-list" id="hpList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Search dropdown — outside header so z-index is not clipped -->
+<div id="searchDropdown"></div>
+
+<!-- TIME PICKER MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="modalTitle">🕐 Set time for point #1</h3>
+    <div class="time-display">
+      <div class="time-big" id="timeBig">00<span>:</span>00</div>
+      <div class="time-sub" id="timeSub">UTC · minute of day: 0</div>
+    </div>
+    <div class="tab-row">
+      <div class="tab-btn active" id="tabClock" onclick="switchTab('clock')">🕐 Clock</div>
+      <div class="tab-btn" id="tabManual" onclick="switchTab('manual')">✏️ Manual</div>
+      <div class="tab-btn" id="tabUnix" onclick="switchTab('unix')">🔢 UNIX</div>
+    </div>
+
+    <!-- Clock -->
+    <div class="tab-content active" id="tabContentClock">
+      <div class="clock-mode-row">
+        <button class="clock-mode-btn active" id="cmH" onclick="setClockMode('h')">HH</button>
+        <button class="clock-mode-btn" id="cmM" onclick="setClockMode('m')">MM</button>
+      </div>
+      <div class="clock-wrap"><svg class="clock-svg" id="clockSvg" viewBox="0 0 200 200"></svg></div>
+    </div>
+
+    <!-- Manual -->
+    <div class="tab-content" id="tabContentManual">
+      <div class="row2" style="margin-bottom:9px;">
+        <div class="field"><label>Hour UTC (0–23)</label><input type="number" id="manualH" min="0" max="23" value="0" oninput="manualChanged()"></div>
+        <div class="field"><label>Minute (0–59)</label><input type="number" id="manualM" min="0" max="59" value="0" oninput="manualChanged()"></div>
+      </div>
+    </div>
+
+    <!-- UNIX -->
+    <div class="tab-content" id="tabContentUnix">
+      <div class="unix-row">
+        <div class="field"><label>UNIX timestamp (seconds)</label><input type="number" id="unixInput" placeholder="e.g. 1700000000" oninput="unixChanged()"></div>
+        <button class="btn btn-secondary btn-sm" onclick="unixNow()" style="flex-shrink:0;">Now</button>
+      </div>
+      <div style="font-family:'Space Mono',monospace;font-size:.62rem;color:var(--muted);margin-bottom:9px;">Only UTC hour:minute is extracted.</div>
+    </div>
+
+    <div class="tz-box">
+      <div class="tz-row"><span class="tz-lbl">UTC</span><span class="tz-utc" id="tzUtc">–</span></div>
+      <div class="tz-row"><span class="tz-lbl">Local (approx.)</span><span class="tz-local" id="tzLocal">–</span></div>
+      <div class="tz-row"><span class="tz-lbl">Minute of day</span><span class="tz-min" id="tzMin">–</span></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="confirmTime()">Set time ✓</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// HOTSPOTS DATA  (coords divided by 1e6 from YAMLA format)
+// ═══════════════════════════════════════════════════════════
+const HOTSPOTS = [
+  {name:"🇰🇮 London, Kiribati (UTC+14)",lat:1.987790,lon:-157.477287},
+  {name:"🇰🇮 Poland, Kiribati (UTC+14)",lat:1.866154,lon:-157.553087},
+  {name:"🇰🇮 Banana, Kiribati (UTC+14)",lat:1.982336,lon:-157.354812},
+  {name:"🇳🇿 Wellington, NZ (UTC+13/+12)",lat:-41.283016,lon:174.766494},
+  {name:"🇳🇿 Auckland, NZ (UTC+13/+12)",lat:-36.849930,lon:174.763020},
+  {name:"🇫🇯 Suva, Fiji (UTC+13/+12)",lat:-18.147125,lon:178.446441},
+  {name:"🇦🇺 Sydney, Australia (UTC+11/+10)",lat:-33.870834,lon:151.211761},
+  {name:"🇦🇺 Brisbane, Australia (UTC+10)",lat:-27.468320,lon:153.023840},
+  {name:"🇦🇺 Adelaide, Aus (UTC+10:30/+9:30)",lat:-34.922832,lon:138.603317},
+  {name:"🇦🇺 Darwin City, Australia (UTC+9:30)",lat:-12.463752,lon:130.843505},
+  {name:"🇯🇵 Tokyo, Japan (UTC+9)",lat:35.696600,lon:139.814690},
+  {name:"🇯🇵 Osaka, Japan (UTC+9)",lat:34.700130,lon:135.497604},
+  {name:"🇯🇵 Okinawa, Japan (UTC+9)",lat:26.217901,lon:127.693794},
+  {name:"🇯🇵 Kyoto, Japan (UTC+9)",lat:35.008502,lon:135.762649},
+  {name:"🇰🇷 Seoul, South Korea (UTC+9)",lat:37.559350,lon:126.980560},
+  {name:"🇹🇼 Taipei, Taiwan (UTC+8)",lat:25.047772,lon:121.516898},
+  {name:"🇸🇬 Singapore (UTC+8)",lat:1.284880,lon:103.844730},
+  {name:"🇦🇺 Perth, Australia (UTC+8)",lat:-31.959581,lon:115.842826},
+  {name:"🇵🇭 Manila, Philippines (UTC+8)",lat:14.601026,lon:120.975135},
+  {name:"🇲🇾 Kuala Lumpur, Malaysia (UTC+8)",lat:3.155749,lon:101.694900},
+  {name:"🇻🇳 Ho Chi Minh, Vietnam (UTC+7)",lat:10.774499,lon:106.693679},
+  {name:"🇹🇭 Bangkok, Thailand (UTC+7)",lat:13.845247,lon:100.569320},
+  {name:"🇮🇩 Jakarta, Indonesia (UTC+7)",lat:-6.224168,lon:106.823074},
+  {name:"🇧🇩 Chattogram, Bangladesh (UTC+6)",lat:22.366130,lon:91.824478},
+  {name:"🇧🇩 Dhaka, Bangladesh (UTC+6)",lat:23.732200,lon:90.395210},
+  {name:"🇮🇳 Pune, India (UTC+5:30)",lat:18.504455,lon:73.852783},
+  {name:"🇮🇳 Mumbai, India (UTC+5:30)",lat:19.077266,lon:72.881561},
+  {name:"🇲🇻 Malé, Maldives (UTC+5)",lat:4.175352,lon:73.509330},
+  {name:"🇵🇰 Lahore, Pakistan (UTC+5)",lat:31.549970,lon:74.343560},
+  {name:"🇦🇪 Dubai, UAE (UTC+4)",lat:25.076055,lon:55.131673},
+  {name:"🇰🇪 Nairobi, Kenya (UTC+3)",lat:-1.275971,lon:36.817481},
+  {name:"🇹🇷 Istanbul, Turkey (UTC+3)",lat:41.077022,lon:28.948717},
+  {name:"🇬🇷 Larissa, Greece (UTC+3/+2)",lat:39.641190,lon:22.412780},
+  {name:"🇬🇷 Thessaloniki, Greece (UTC+3/+2)",lat:40.632747,lon:22.954257},
+  {name:"🇪🇬 Cairo, Egypt (UTC+3/+2)",lat:30.042758,lon:31.200077},
+  {name:"🇿🇦 Cape Town, South Africa (UTC+2)",lat:-33.918781,lon:18.426647},
+  {name:"🇫🇷 Paris, France (UTC+2/+1)",lat:48.863021,lon:2.334101},
+  {name:"🇪🇸 Zaragoza, Spain (UTC+2/+1)",lat:41.661924,lon:-0.901100},
+  {name:"🇪🇸 Madrid, Spain (UTC+2/+1)",lat:40.417549,lon:-3.682479},
+  {name:"🇪🇸 Barcelona, Spain (UTC+2/+1)",lat:41.379997,lon:2.174263},
+  {name:"🇮🇹 Rome, Italy (UTC+2/+1)",lat:41.893348,lon:12.483730},
+  {name:"🇬🇧 London, England (UTC+1/+0)",lat:51.511692,lon:-0.123864},
+  {name:"🇮🇸 Reykjavík, Iceland (UTC+0)",lat:64.140495,lon:-21.949008},
+  {name:"🇨🇻 Praia, Cabo Verde (UTC-1)",lat:14.917956,lon:-23.509067},
+  {name:"🇧🇷 Fernando de Noronha, Brazil (UTC-2)",lat:-3.845939,lon:-32.411685},
+  {name:"🇧🇷 São Paulo, Brazil (UTC-3)",lat:-23.587596,lon:-46.655761},
+  {name:"🇧🇷 Rio de Janeiro, Brazil (UTC-3)",lat:-22.924720,lon:-43.233100},
+  {name:"🇨🇦 St. John's, Canada (UTC-2:30/-3:30)",lat:47.572616,lon:-52.690032},
+  {name:"🇨🇦 Halifax, Canada (UTC-3/-4)",lat:44.643192,lon:-63.575477},
+  {name:"🇨🇦 Quebec, Canada (UTC-4/-5)",lat:46.817008,lon:-71.213462},
+  {name:"🇺🇸 Central Park, NYC, USA (UTC-4/-5)",lat:40.773895,lon:-73.971130},
+  {name:"🇺🇸 Bryant Park, NYC, USA (UTC-4/-5)",lat:40.754007,lon:-73.984113},
+  {name:"🇺🇸 Tampa, FL, USA (UTC-4/-5)",lat:27.943004,lon:-82.452636},
+  {name:"🇺🇸 Philadelphia, PA, USA (UTC-4/-5)",lat:39.947040,lon:-75.152397},
+  {name:"🇺🇸 Chicago, IL, USA (UTC-5/-6)",lat:41.885696,lon:-87.622093},
+  {name:"🇺🇸 New Orleans, LA, USA (UTC-5/-6)",lat:29.956180,lon:-90.066131},
+  {name:"🇲🇽 Mexico City, Mexico (UTC-6)",lat:19.435171,lon:-99.145965},
+  {name:"🇺🇸 Denver, CO, USA (UTC-6/-7)",lat:39.748146,lon:-104.995681},
+  {name:"🇺🇸 San Francisco, CA, USA (UTC-7/-8)",lat:37.786411,lon:-122.405403},
+  {name:"🇺🇸 Pier 39, CA, USA (UTC-7/-8)",lat:37.808410,lon:-122.409423},
+  {name:"🇺🇸 Disneyland, CA, USA (UTC-7/-8)",lat:33.812089,lon:-117.919011},
+  {name:"🇺🇸 Santa Monica, CA, USA (UTC-7/-8)",lat:34.009050,lon:-118.497602},
+  {name:"🇺🇸 Portland, OR, USA (UTC-7/-8)",lat:45.518718,lon:-122.679420},
+  {name:"🇨🇦 Edmonton, Canada (UTC+1/+0)",lat:53.543201,lon:-113.489692},
+  {name:"🇺🇸 Anchorage, AK, USA (UTC-8/-9)",lat:61.217254,lon:-149.893066},
+  {name:"🇺🇸 Juneau, AK, USA (UTC-8/-9)",lat:58.301731,lon:-134.412506},
+  {name:"🇺🇸 Honolulu, HI, USA (UTC-10)",lat:21.306690,lon:-157.858930},
+  {name:"🇦🇸 American Samoa (UTC-11)",lat:-14.278107,lon:-170.687881},
+  {name:"🏴 Howland Island (UTC-12)",lat:0.807210,lon:-176.617691},
+];
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let points = [];       // {lat,lon,radius?,minuteOfDay?,name?}
+let markers = [], circles = [], handles = [];
+let pathLine=null, geoCircle=null, centerMarker=null;
+let activeIdx=-1;
+let timingMode='interval';
+let isDark=true;
+let fontSize=1.0;
+
+// modal
+let modalPointIdx=-1, modalH=0, modalM=0;
+let clockEditMode='h', activeTab='clock';
+
+// dragging radius handle
+let dragPointIdx=-1;
+
+// ═══════════════════════════════════════════════════════════
+// MAP SETUP
+// ═══════════════════════════════════════════════════════════
+const darkTile  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const lightTile = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+const map = L.map('map',{zoomControl:true}).setView([20,0],2);
+let tileLayer = L.tileLayer(darkTile,{attribution:'© OpenStreetMap © CARTO',maxZoom:19}).addTo(map);
+map.on('click', e => addPoint(e.latlng.lat, e.latlng.lng));
+
+// ═══════════════════════════════════════════════════════════
+// THEME
+// ═══════════════════════════════════════════════════════════
+function toggleTheme(){
+  isDark=!isDark;
+  document.body.classList.toggle('light',!isDark);
+  document.getElementById('themeBtn').textContent=isDark?'🌙':'☀️';
+  map.removeLayer(tileLayer);
+  tileLayer=L.tileLayer(isDark?darkTile:lightTile,{attribution:'© OpenStreetMap © CARTO',maxZoom:19}).addTo(map);
+}
+
+// ═══════════════════════════════════════════════════════════
+// FONT SIZE
+// ═══════════════════════════════════════════════════════════
+function changeFontSize(d){
+  fontSize=Math.max(0.75,Math.min(1.4,fontSize+d*0.08));
+  document.documentElement.style.setProperty('--fs',fontSize+'rem');
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODE
+// ═══════════════════════════════════════════════════════════
+function setMode(m){
+  timingMode=m;
+  document.getElementById('modeInterval').classList.toggle('active',m==='interval');
+  document.getElementById('modeClock').classList.toggle('active',m==='clock');
+  document.getElementById('intervalField').style.display=m==='interval'?'':'none';
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════
+// POINTS
+// ═══════════════════════════════════════════════════════════
+function getDefaultRadius(){ return +document.getElementById('shardRadius').value||220; }
+
+function addPoint(lat,lon,name,radius){
+  const p={lat:+lat.toFixed(6),lon:+lon.toFixed(6),radius:radius||getDefaultRadius()};
+  if(name) p.name=name;
+  if(timingMode==='clock') p.minuteOfDay=null;
+  points.push(p);
+  render();
+}
+function removePoint(idx){ points.splice(idx,1); if(activeIdx>=points.length)activeIdx=points.length-1; render(); }
+function movePoint(idx,dir){ const n=idx+dir; if(n<0||n>=points.length)return; [points[idx],points[n]]=[points[n],points[idx]]; render(); }
+function clearAll(){ if(points.length&&!confirm('Clear all points?'))return; points=[];activeIdx=-1;render(); }
+function setPointRadius(idx,v){ points[idx].radius=Math.max(10,+v||220); render(); }
+
+// ═══════════════════════════════════════════════════════════
+// TIMEZONE
+// ═══════════════════════════════════════════════════════════
+function getOffsetHours(lon){ return Math.round(lon/15); }
+function fmtUTC(h,m){ return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+' UTC'; }
+function fmtLocal(h,m,lon){ const off=getOffsetHours(lon); const lh=((h+off)%24+24)%24; return String(lh).padStart(2,'0')+':'+String(m).padStart(2,'0')+' (UTC'+(off>=0?'+':'')+off+')'; }
+
+// ═══════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════
+function render(){
+  const interval=+document.getElementById('interval').value||4;
+  const cLat=+document.getElementById('centerLat').value;
+  const cLon=+document.getElementById('centerLon').value;
+  const geoR=+document.getElementById('geoRadius').value||2000;
+
+  // clear
+  markers.forEach(m=>map.removeLayer(m)); circles.forEach(c=>map.removeLayer(c)); handles.forEach(h=>map.removeLayer(h));
+  markers=[];circles=[];handles=[];
+  if(pathLine){map.removeLayer(pathLine);pathLine=null;}
+  if(geoCircle){map.removeLayer(geoCircle);geoCircle=null;}
+  if(centerMarker){map.removeLayer(centerMarker);centerMarker=null;}
+
+  geoCircle=L.circle([cLat,cLon],{radius:geoR,color:'#f0c040',weight:1.5,opacity:.4,fill:false,dashArray:'6 4'}).addTo(map);
+  centerMarker=L.circleMarker([cLat,cLon],{radius:5,color:'#f0c040',fillColor:'#f0c040',fillOpacity:.8,weight:2}).addTo(map);
+
+  if(points.length>1)
+    pathLine=L.polyline(points.map(p=>[p.lat,p.lon]),{color:'#40c0f0',weight:2,opacity:.6,dashArray:'8 4'}).addTo(map);
+
+  points.forEach((p,i)=>{
+    const isActive=i===activeIdx;
+    const hasTime=timingMode==='clock'&&p.minuteOfDay!=null;
+    const col=isActive?'#f0c040':hasTime?'#40f0a0':'#40c0f0';
+    const r=p.radius||getDefaultRadius();
+
+    // shard circle
+    const c=L.circle([p.lat,p.lon],{radius:r,color:col,weight:1.5,opacity:.6,fillColor:col,fillOpacity:.08}).addTo(map);
+    circles.push(c);
+
+    // radius drag handle — small marker on the east edge of the circle
+    const handleLatLng = calcRadiusHandleLatLng(p.lat,p.lon,r);
+    const hIcon=L.divIcon({className:'radius-handle',html:`<div style="width:10px;height:10px;border-radius:50%;background:${col};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);"></div>`,iconSize:[10,10],iconAnchor:[5,5]});
+    const h=L.marker(handleLatLng,{icon:hIcon,draggable:true,zIndexOffset:1000}).addTo(map);
+    h.on('drag',ev=>{
+      const newR=calcRadiusFromHandle(p.lat,p.lon,ev.latlng.lat,ev.latlng.lng);
+      points[i].radius=Math.max(10,Math.round(newR));
+      // update circle live
+      circles[i].setRadius(points[i].radius);
+      // update handle position to keep it on the east
+      const newHandle=calcRadiusHandleLatLng(p.lat,p.lon,points[i].radius);
+      h.setLatLng(newHandle);
+      // update sidebar radius input if this point is shown
+      const inp=document.getElementById('pr-'+i);
+      if(inp) inp.value=points[i].radius;
+    });
+    h.on('dragend',()=>render());
+    handles.push(h);
+
+    // numbered marker
+    const icon=L.divIcon({className:'',html:`<div style="width:24px;height:24px;border-radius:50%;background:${col};color:#0d0f14;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,.25);box-shadow:0 2px 8px rgba(0,0,0,.5);cursor:pointer;">${i+1}</div>`,iconSize:[24,24],iconAnchor:[12,12]});
+    const m=L.marker([p.lat,p.lon],{icon,draggable:true}).addTo(map)
+      .on('click',()=>{activeIdx=i;render();})
+      .on('dragend',e=>{const ll=e.target.getLatLng();points[i].lat=+ll.lat.toFixed(6);points[i].lon=+ll.lng.toFixed(6);render();});
+    markers.push(m);
+  });
+
+  renderList();
+  updateStats(interval);
+  checkSteps();
+}
+
+function calcRadiusHandleLatLng(lat,lon,radiusM){
+  // place handle directly east of the point
+  const dLon=radiusM/(111320*Math.cos(lat*Math.PI/180));
+  return [lat, lon+dLon];
+}
+function calcRadiusFromHandle(clat,clon,hlat,hlon){
+  const dy=(hlat-clat)*111000;
+  const dx=(hlon-clon)*111320*Math.cos(clat*Math.PI/180);
+  return Math.sqrt(dx*dx+dy*dy);
+}
+
+function renderList(){
+  const list=document.getElementById('pointsList');
+  if(!points.length){list.innerHTML='<div class="empty-hint">Click the map to add points,<br>search a city above,<br>or use Hotspots 📍</div>';return;}
+  list.innerHTML=points.map((p,i)=>{
+    const r=p.radius||getDefaultRadius();
+    let meta='';
+    if(timingMode==='clock'){
+      if(p.minuteOfDay!=null){
+        const h=Math.floor(p.minuteOfDay/60),m=p.minuteOfDay%60;
+        meta+=`<span class="utc">⏱ ${fmtUTC(h,m)}</span> · <span class="local">📍 ${fmtLocal(h,m,p.lon)}</span><br>`;
+      } else meta+=`<span style="color:var(--danger)">⚠ No time set</span><br>`;
+    }
+    meta+=`<span class="r">⬤ ${r}m</span>`;
+    if(p.name) meta=`<span style="color:var(--muted)">${p.name}</span><br>`+meta;
+    const setTimeBtn=timingMode==='clock'?`<button class="btn btn-secondary btn-sm" style="margin-top:4px;" onclick="event.stopPropagation();openModal(${i})">🕐 Set time</button>`:'';
+    return `<div class="point-item ${i===activeIdx?'active':''}" onclick="setActive(${i})">
+      <div class="point-num">${i+1}</div>
+      <div class="point-info">
+        <div class="point-coords">${p.lat}, ${p.lon}</div>
+        <div class="point-meta">${meta}</div>
+        <div class="point-radius-row">
+          <input id="pr-${i}" type="number" value="${r}" min="10" max="50000" step="10"
+            onclick="event.stopPropagation()"
+            onchange="event.stopPropagation();setPointRadius(${i},this.value)">
+          <span>m radius</span>
+        </div>
+        ${setTimeBtn}
+      </div>
+      <div class="point-actions">
+        <button class="icon-btn up" onclick="event.stopPropagation();movePoint(${i},-1)" title="Up">▲</button>
+        <button class="icon-btn down" onclick="event.stopPropagation();movePoint(${i},1)" title="Down">▼</button>
+        <button class="icon-btn" onclick="event.stopPropagation();removePoint(${i})" title="Remove">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setActive(idx){activeIdx=idx;render();map.panTo([points[idx].lat,points[idx].lon]);}
+
+function updateStats(interval){
+  const n=points.length;
+  document.getElementById('statPoints').textContent=n;
+  if(!n){document.getElementById('statSweep').textContent='–';document.getElementById('statLaps').textContent='–';return;}
+  if(timingMode==='interval'){
+    const sw=n*interval;
+    document.getElementById('statSweep').textContent=sw;
+    document.getElementById('statLaps').textContent=(1440/sw).toFixed(1);
+  } else {
+    const set=points.filter(p=>p.minuteOfDay!=null).length;
+    document.getElementById('statSweep').textContent=set+'/'+n;
+    document.getElementById('statLaps').textContent='1';
+  }
+}
+
+function checkSteps(){
+  const warn=document.getElementById('stepWarning');
+  if(points.length<2){warn.style.display='none';return;}
+  const R=6371000;let maxD=0,maxI=-1;
+  for(let i=0;i<points.length;i++){
+    const a=points[i],b=points[(i+1)%points.length];
+    const dlat=(b.lat-a.lat)*Math.PI/180,dlon=(b.lon-a.lon)*Math.PI/180;
+    const x=Math.sin(dlat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dlon/2)**2;
+    const d=R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+    if(d>maxD){maxD=d;maxI=i;}
+  }
+  if(maxD>1000){warn.style.display='block';warn.textContent=`⚠ Step ${maxI+1}→${(maxI+1)%points.length+1}: ${Math.round(maxD)}m (>1km cooldown risk!)`;}
+  else warn.style.display='none';
+}
+
+// ═══════════════════════════════════════════════════════════
+// CITY SEARCH  (Nominatim + hotspots)
+// ═══════════════════════════════════════════════════════════
+let searchTimer=null;
+const citySearchEl=document.getElementById('citySearch');
+const dropEl=document.getElementById('searchDropdown');
+
+citySearchEl.addEventListener('input',()=>{
+  clearTimeout(searchTimer);
+  const q=citySearchEl.value.trim();
+  if(!q){dropEl.classList.remove('open');return;}
+  // coords pattern?
+  const cm=q.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+  if(cm){
+    const lat=parseFloat(cm[1]),lon=parseFloat(cm[2]);
+    showDrop([],[{label:`Jump to ${lat}, ${lon}`,lat,lon,isCoord:true}]);
+    return;
+  }
+  // filter hotspots locally
+  const ql=q.toLowerCase();
+  const hm=HOTSPOTS.filter(h=>h.name.toLowerCase().includes(ql)).slice(0,5);
+  showDrop(hm,[]);
+  // debounce nominatim
+  searchTimer=setTimeout(()=>nominatimSearch(q,hm),400);
+});
+
+citySearchEl.addEventListener('keydown',e=>{if(e.key==='Escape'){dropEl.classList.remove('open');citySearchEl.blur();}});
+document.addEventListener('click',e=>{if(!citySearchEl.contains(e.target)&&!dropEl.contains(e.target))dropEl.classList.remove('open');});
+
+function nominatimSearch(q,existingHotspots){
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5`)
+    .then(r=>r.json())
+    .then(results=>{
+      const cities=results.map(r=>({label:r.display_name,lat:+r.lat,lon:+r.lon}));
+      showDrop(existingHotspots,cities);
+    }).catch(()=>{});
+}
+
+function positionDropdown(){
+  const rect=citySearchEl.getBoundingClientRect();
+  dropEl.style.top=(rect.bottom+4)+'px';
+  dropEl.style.left=rect.left+'px';
+  dropEl.style.width=rect.width+'px';
+}
+
+function showDrop(hotspots,cities){
+  let html='';
+  if(hotspots.length){
+    html+=`<div class="sdrop-section">Hotspots</div>`;
+    hotspots.forEach(h=>{
+      html+=`<div class="sdrop-item" onclick="jumpTo(${h.lat},${h.lon},'${h.name.replace(/'/g,"\\'")}')">
+        <div class="sdi-name">${h.name}</div>
+        <div class="sdi-coords">${h.lat.toFixed(4)}, ${h.lon.toFixed(4)}</div>
+      </div>`;
+    });
+  }
+  if(cities.length){
+    html+=`<div class="sdrop-section">${cities[0].isCoord?'Coordinate':'Nominatim'}</div>`;
+    cities.forEach(c=>{
+      const safeName=c.label.replace(/'/g,"\\'").substring(0,60);
+      html+=`<div class="sdrop-item" onclick="jumpTo(${c.lat},${c.lon},'')">
+        <div class="sdi-name">${c.label.substring(0,55)}${c.label.length>55?'…':''}</div>
+        <div class="sdi-coords">${(+c.lat).toFixed(4)}, ${(+c.lon).toFixed(4)}</div>
+      </div>`;
+    });
+  }
+  if(!html) html='<div class="sdrop-item" style="color:var(--muted)">No results</div>';
+  dropEl.innerHTML=html;
+  positionDropdown();
+  dropEl.classList.add('open');
+}
+
+function jumpTo(lat,lon,name){
+  map.setView([lat,lon],12,{animate:true});
+  dropEl.classList.remove('open');
+  citySearchEl.value='';
+}
+
+// ═══════════════════════════════════════════════════════════
+// HOTSPOT PANEL
+// ═══════════════════════════════════════════════════════════
+function toggleHotspots(){
+  const p=document.getElementById('hotspotPanel');
+  const open=p.classList.toggle('open');
+  document.getElementById('hotspotBtn').classList.toggle('active',open);
+  if(open) renderHotspots('');
+}
+
+function renderHotspots(filter){
+  const fl=filter.toLowerCase();
+  const list=document.getElementById('hpList');
+  const items=filter?HOTSPOTS.filter(h=>h.name.toLowerCase().includes(fl)):HOTSPOTS;
+  list.innerHTML=items.map(h=>`
+    <div class="hp-item" onclick="addHotspot(${h.lat},${h.lon},'${h.name.replace(/'/g,"\\'")}')">
+      <div class="hp-name">${h.name}</div>
+      <div class="hp-item-add">+</div>
+    </div>`).join('');
+}
+
+function filterHotspots(v){ renderHotspots(v); }
+
+function addHotspot(lat,lon,name){
+  map.setView([lat,lon],12,{animate:true});
+  addPoint(lat,lon,name);
+  showToast(`✓ Added ${name.substring(0,30)}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// PASTE
+// ═══════════════════════════════════════════════════════════
+function parseCoords(text){
+  const r=[];
+  for(const line of text.trim().split('\n')){
+    const c=line.trim().replace(/\s+/g,'');if(!c)continue;
+    const m=c.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/);
+    if(m){const lat=parseFloat(m[1]),lon=parseFloat(m[2]);if(!isNaN(lat)&&!isNaN(lon))r.push({lat,lon});}
+  }
+  return r;
+}
+function pasteAdd(){
+  const p=parseCoords(document.getElementById('pasteCoords').value);
+  if(!p.length){showToast('No valid coordinates found',true);return;}
+  p.forEach(pt=>points.push({...pt,radius:getDefaultRadius()}));
+  document.getElementById('pasteCoords').value='';
+  map.setView([p[0].lat,p[0].lon],12);render();
+  showToast(`✓ Added ${p.length} point(s)`);
+}
+function pasteReplace(){
+  const p=parseCoords(document.getElementById('pasteCoords').value);
+  if(!p.length){showToast('No valid coordinates found',true);return;}
+  points=p.map(pt=>({...pt,radius:getDefaultRadius()}));activeIdx=-1;
+  document.getElementById('pasteCoords').value='';
+  map.setView([p[0].lat,p[0].lon],12);render();
+  showToast(`✓ Replaced with ${p.length} point(s)`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════
+function exportJSON(){
+  if(!points.length){showToast('No points to export!',true);return;}
+  const interval=+document.getElementById('interval').value||4;
+  const cLat=+document.getElementById('centerLat').value;
+  const cLon=+document.getElementById('centerLon').value;
+  const geoR=+document.getElementById('geoRadius').value||2000;
+  const shards=[];
+
+  if(timingMode==='interval'){
+    let min=0;
+    while(min<1440){
+      for(const p of points){
+        if(min>=1440)break;
+        shards.push({latitude:p.lat,longitude:p.lon,minuteOfDay:min,radius:p.radius||getDefaultRadius()});
+        min+=interval;
+      }
+    }
+  } else {
+    const missing=points.filter(p=>p.minuteOfDay==null);
+    if(missing.length){showToast(`${missing.length} point(s) have no time set!`,true);return;}
+    [...points].sort((a,b)=>a.minuteOfDay-b.minuteOfDay)
+      .forEach(p=>shards.push({latitude:p.lat,longitude:p.lon,minuteOfDay:p.minuteOfDay,radius:p.radius||getDefaultRadius()}));
+  }
+
+  const out={latitude:cLat,longitude:cLon,radius:geoR,rotator24Shards:shards,rotatorTimestampShards:null,type:'CIRCLE'};
+  const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='rotator.json';a.click();URL.revokeObjectURL(url);
+  showToast(`✓ Exported ${shards.length} shards`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// IMPORT
+// ═══════════════════════════════════════════════════════════
+document.getElementById('fileInput').addEventListener('change',e=>{
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(data.latitude)document.getElementById('centerLat').value=data.latitude;
+      if(data.longitude)document.getElementById('centerLon').value=data.longitude;
+      if(data.radius)document.getElementById('geoRadius').value=data.radius;
+      if(data.rotator24Shards?.length){
+        const shards=data.rotator24Shards;
+        const route=[],seen=new Set();
+        for(const s of shards){const k=`${s.latitude},${s.longitude}`;if(seen.has(k))break;seen.add(k);route.push({lat:s.latitude,lon:s.longitude,minuteOfDay:s.minuteOfDay,radius:s.radius||getDefaultRadius()});}
+        const interval=shards.length>1?shards[1].minuteOfDay-shards[0].minuteOfDay:4;
+        const allUnique=new Set(route.map(p=>p.minuteOfDay)).size===route.length;
+        if(allUnique&&route.length<=50){setMode('clock');points=route;}
+        else{setMode('interval');document.getElementById('interval').value=interval;points=route.map(p=>({...p}));}
+        activeIdx=-1;
+        if(points.length){const avgLat=points.reduce((s,p)=>s+p.lat,0)/points.length,avgLon=points.reduce((s,p)=>s+p.lon,0)/points.length;map.setView([avgLat,avgLon],10);}
+        render();showToast(`✓ Loaded ${points.length} points`);
+      }
+    }catch(err){showToast('Could not read JSON file',true);}
+  };
+  reader.readAsText(file);e.target.value='';
+});
+
+// ═══════════════════════════════════════════════════════════
+// TIME MODAL
+// ═══════════════════════════════════════════════════════════
+function openModal(idx){
+  modalPointIdx=idx;
+  const p=points[idx];
+  modalH=p.minuteOfDay!=null?Math.floor(p.minuteOfDay/60):0;
+  modalM=p.minuteOfDay!=null?p.minuteOfDay%60:0;
+  document.getElementById('modalTitle').textContent=`🕐 Set time for point #${idx+1}`;
+  document.getElementById('manualH').value=modalH;
+  document.getElementById('manualM').value=modalM;
+  switchTab('clock');setClockMode('h');
+  updateModal();drawClock();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('open');}
+function confirmTime(){points[modalPointIdx].minuteOfDay=modalH*60+modalM;closeModal();render();showToast(`✓ Time set: ${fmtUTC(modalH,modalM)}`);}
+
+function updateModal(){
+  const min=modalH*60+modalM;
+  document.getElementById('timeBig').innerHTML=String(modalH).padStart(2,'0')+'<span>:</span>'+String(modalM).padStart(2,'0');
+  document.getElementById('timeSub').textContent='UTC · minute of day: '+min;
+  document.getElementById('tzUtc').textContent=fmtUTC(modalH,modalM);
+  const p=points[modalPointIdx];
+  document.getElementById('tzLocal').textContent=p?fmtLocal(modalH,modalM,p.lon):'–';
+  document.getElementById('tzMin').textContent=min;
+}
+function switchTab(tab){
+  activeTab=tab;
+  ['clock','manual','unix'].forEach(t=>{
+    const k=t.charAt(0).toUpperCase()+t.slice(1);
+    document.getElementById('tab'+k).classList.toggle('active',t===tab);
+    document.getElementById('tabContent'+k).classList.toggle('active',t===tab);
+  });
+  if(tab==='clock')drawClock();
+}
+function setClockMode(m){
+  clockEditMode=m;
+  document.getElementById('cmH').classList.toggle('active',m==='h');
+  document.getElementById('cmM').classList.toggle('active',m==='m');
+  drawClock();
+}
+function manualChanged(){
+  modalH=Math.min(23,Math.max(0,+document.getElementById('manualH').value||0));
+  modalM=Math.min(59,Math.max(0,+document.getElementById('manualM').value||0));
+  updateModal();drawClock();
+}
+function unixChanged(){
+  const v=+document.getElementById('unixInput').value;if(!v)return;
+  const d=new Date(v*1000);modalH=d.getUTCHours();modalM=d.getUTCMinutes();
+  updateModal();drawClock();
+}
+function unixNow(){document.getElementById('unixInput').value=Math.floor(Date.now()/1000);unixChanged();}
+
+// ═══════════════════════════════════════════════════════════
+// CLOCK DRAW
+// ═══════════════════════════════════════════════════════════
+function drawClock(){
+  const svg=document.getElementById('clockSvg');
+  const cx=100,cy=100,ro=88,ri=62;
+  const isH=clockEditMode==='h';
+  let html=`<circle cx="${cx}" cy="${cy}" r="${ro}" fill="#1c2030" stroke="#2a3045" stroke-width="1.5"/>`;
+
+  if(isH){
+    for(let i=0;i<24;i++){
+      const outer=i<12;
+      const showVal=i===0?12:(i<12?i:(i===12?0:i));
+      const r2=outer?ro-16:ri-8;
+      const angle=(i/12)*2*Math.PI-Math.PI/2;
+      const tx=cx+r2*Math.cos(angle),ty=cy+r2*Math.sin(angle);
+      const sel=modalH===i;
+      const fs=outer?11:9;
+      if(sel)html+=`<circle cx="${tx}" cy="${ty}" r="${outer?13:11}" fill="#f0c040"/>`;
+      html+=`<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="central" fill="${sel?'#0d0f14':'#6070a0'}" font-size="${fs}" font-family="Space Mono,monospace" font-weight="700" style="cursor:pointer" onclick="clockPick(${i})">${showVal}</text>`;
+    }
+    const hAngle=((modalH%12)/12)*2*Math.PI-Math.PI/2;
+    const hLen=modalH<12?55:38;
+    html+=`<line x1="${cx}" y1="${cy}" x2="${cx+hLen*Math.cos(hAngle)}" y2="${cy+hLen*Math.sin(hAngle)}" stroke="#f0c040" stroke-width="2.5" stroke-linecap="round"/>`;
+  } else {
+    for(let i=0;i<60;i++){
+      const angle=(i/60)*2*Math.PI-Math.PI/2;
+      const isMajor=i%5===0;
+      const r2=ro-(isMajor?16:22);
+      const tx=cx+r2*Math.cos(angle),ty=cy+r2*Math.sin(angle);
+      const sel=modalM===i;
+      if(isMajor){
+        if(sel)html+=`<circle cx="${tx}" cy="${ty}" r="13" fill="#f0c040"/>`;
+        html+=`<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="central" fill="${sel?'#0d0f14':'#6070a0'}" font-size="11" font-family="Space Mono,monospace" font-weight="700" style="cursor:pointer" onclick="clockPick(${i})">${i}</text>`;
+      } else {
+        if(sel)html+=`<circle cx="${cx+(ro-18)*Math.cos(angle)}" cy="${cy+(ro-18)*Math.sin(angle)}" r="4" fill="#f0c040"/>`;
+        else html+=`<circle cx="${cx+(ro-20)*Math.cos(angle)}" cy="${cy+(ro-20)*Math.sin(angle)}" r="2" fill="#2a3045"/>`;
+      }
+    }
+    const mAngle=(modalM/60)*2*Math.PI-Math.PI/2;
+    html+=`<line x1="${cx}" y1="${cy}" x2="${cx+68*Math.cos(mAngle)}" y2="${cy+68*Math.sin(mAngle)}" stroke="#f0c040" stroke-width="2" stroke-linecap="round"/>`;
+  }
+  html+=`<circle cx="${cx}" cy="${cy}" r="4" fill="#f0c040"/>`;
+  svg.innerHTML=html;
+
+  const onMove=(e)=>{
+    const rect=svg.getBoundingClientRect();
+    const cx2=e.touches?e.touches[0].clientX:e.clientX;
+    const cy2=e.touches?e.touches[0].clientY:e.clientY;
+    const mx=(cx2-rect.left)/rect.width*200-cx;
+    const my=(cy2-rect.top)/rect.height*200-cy;
+    let angle=Math.atan2(my,mx)+Math.PI/2;
+    if(angle<0)angle+=2*Math.PI;
+    if(isH){const dist=Math.sqrt(mx*mx+my*my);const val=Math.round(angle/(2*Math.PI)*12)%12;modalH=dist<(ri+ro-16)/2?val+12:val;}
+    else modalM=Math.round(angle/(2*Math.PI)*60)%60;
+    updateModal();drawClock();
+  };
+  const onUp=()=>{
+    document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);
+    document.removeEventListener('touchmove',onMove);document.removeEventListener('touchend',onUp);
+    if(isH)setClockMode('m');
+  };
+  svg.onmousedown=svg.ontouchstart=(e)=>{
+    e.preventDefault();
+    document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);
+    document.addEventListener('touchmove',onMove,{passive:false});document.addEventListener('touchend',onUp);
+    onMove(e);
+  };
+}
+function clockPick(val){
+  if(clockEditMode==='h'){modalH=val;setClockMode('m');}else modalM=val;
+  updateModal();drawClock();
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════
+function showToast(msg,error=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast show'+(error?' error':'');
+  setTimeout(()=>{t.className='toast';},2800);
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+['shardRadius','interval','centerLat','centerLon','geoRadius'].forEach(id=>{
+  document.getElementById(id).addEventListener('change',render);
+});
+setMode('interval');
+render();
+setTimeout(()=>{map.invalidateSize();},100);
+</script>
+</body>
+</html>

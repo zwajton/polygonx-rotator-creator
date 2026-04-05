@@ -6,8 +6,7 @@ A standalone HTML tool for creating Pokémon GO geofence rotator JSON files. No 
 
 ## Getting Started
 
-1. Download `rotator-builder.html`
-2. Open it in your browser (Chrome or Firefox recommended)
+1. Open https://zwajton.github.io/polygonx-rotator-creator/
 3. Start adding points and export your rotator
 
 ---

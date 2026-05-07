@@ -243,12 +243,8 @@ body.light .map-hint{background:rgba(240,242,247,.9);}
           </div>
         </div>
         <div class="field">
-          <label>Geofence center lat</label>
-          <input type="number" id="centerLat" value="35.641800" step="0.000001">
-        </div>
-        <div class="field">
-          <label>Geofence center lon</label>
-          <input type="number" id="centerLon" value="139.861500" step="0.000001">
+          <label>Geofence center (lat, lon)</label>
+          <input type="text" id="centerLatLon" value="35.641800, 139.861500" placeholder="35.641800, 139.861500">
         </div>
         <div class="field">
           <label>Geofence boundary radius (m)</label>
@@ -281,6 +277,21 @@ body.light .map-hint{background:rgba(240,242,247,.9);}
           <button class="btn btn-danger btn-sm" onclick="clearAll()">✕ Clear</button>
         </div>
         <div id="stepWarning" class="step-warning" style="display:none"></div>
+      </div>
+
+      <!-- Cooldown Calculator -->
+      <div class="ss">
+        <h2>Cooldown Calculator</h2>
+        <div class="field">
+          <label>Point A (lat, lon)</label>
+          <input type="text" id="cdA" placeholder="40.59807, -73.92145" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Point B (lat, lon)</label>
+          <input type="text" id="cdB" placeholder="35.64160, 139.86149" autocomplete="off">
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="calcCooldownBetween()" style="margin-bottom:8px;width:100%;justify-content:center;">⏱ Calculate cooldown</button>
+        <div id="cdResult" style="display:none;font-family:'Space Mono',monospace;font-size:.78rem;line-height:2;background:var(--surface2);border-radius:var(--radius);padding:10px 12px;border:1px solid var(--border);"></div>
       </div>
 
       <!-- Points -->
@@ -452,6 +463,42 @@ const HOTSPOTS = [
 ];
 
 // ═══════════════════════════════════════════════════════════
+// COOLDOWN TABLE  [min_km, minutes] — step function
+// Derived from measured Pokémon GO cooldown data.
+// +2 min safety margin is applied for distances > 15 km.
+// ═══════════════════════════════════════════════════════════
+const COOLDOWN_TABLE=[
+  [1,   0.8],[2,   2  ],[3,   3  ],[6,   5  ],[10,  8  ],
+  [15,  10 ],[20,  12 ],[25,  16 ],[30,  18 ],[35,  19 ],
+  [40,  20 ],[45,  21 ],[50,  22 ],[60,  23 ],[70,  24 ],
+  [80,  25 ],[90,  26 ],[100, 27 ],[125, 28 ],[150, 32 ],
+  [175, 34 ],[201, 38 ],[250, 43 ],[300, 47 ],[328, 48 ],
+  [350, 50 ],[400, 55 ],[450, 59 ],[500, 62 ],[550, 67 ],
+  [600, 69 ],[650, 73 ],[700, 76 ],[751, 81 ],[802, 83 ],
+  [839, 88 ],[897, 90 ],[948, 94 ],[1007,97 ],[1020,101],
+  [1180,109],[1221,112],[1300,117],[1344,119],[1403,120],
+];
+
+function calcCooldown(km){
+  if(km<=0)return 0;
+  let cd=0;
+  for(const[d,m]of COOLDOWN_TABLE){if(km>=d)cd=m;else break;}
+  return km>15?cd+2:cd;
+}
+
+function fmtCooldown(min){
+  if(min<1){const s=Math.round(min*60);return s+'s';}
+  const m=Math.floor(min),s=Math.round((min-m)*60);
+  return s>0?m+'m '+s+'s':m+'m';
+}
+
+function haversineKm(lat1,lon1,lat2,lon2){
+  const R=6371,dl=(lat2-lat1)*Math.PI/180,dg=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dl/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dg/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// ═══════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════
 let points = [];       // {lat,lon,radius?,minuteOfDay?,name?}
@@ -528,6 +575,22 @@ function setPointRadius(idx,v){ points[idx].radius=Math.max(10,+v||220); render(
 // ═══════════════════════════════════════════════════════════
 // TIMEZONE
 // ═══════════════════════════════════════════════════════════
+function parseLatLon(str){
+  str=(str||'').trim();
+  // dot decimal, comma or space separator: "40.598,-73.921" or "40.598 -73.921"
+  let m=str.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
+  if(m)return[parseFloat(m[1]),parseFloat(m[2])];
+  m=str.match(/^(-?\d+\.?\d*)\s+(-?\d+\.?\d*)$/);
+  if(m)return[parseFloat(m[1]),parseFloat(m[2])];
+  // locale comma-decimal with space separator: "40,598 -73,921"
+  const sp=str.split(/\s+/);
+  if(sp.length===2){const a=parseFloat(sp[0].replace(',','.'));const b=parseFloat(sp[1].replace(',','.'));if(!isNaN(a)&&!isNaN(b))return[a,b];}
+  // locale comma-decimal with comma separator (4 parts): "40,598,-73,921"
+  const p=str.split(',');
+  if(p.length===4){const a=parseFloat(p[0].trim()+'.'+p[1].trim());const b=parseFloat(p[2].trim()+'.'+p[3].trim());if(!isNaN(a)&&!isNaN(b))return[a,b];}
+  return[NaN,NaN];
+}
+
 function getOffsetHours(lon){ return Math.round(lon/15); }
 function fmtUTC(h,m){ return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+' UTC'; }
 function fmtLocal(h,m,lon){ const off=getOffsetHours(lon); const lh=((h+off)%24+24)%24; return String(lh).padStart(2,'0')+':'+String(m).padStart(2,'0')+' (UTC'+(off>=0?'+':'')+off+')'; }
@@ -537,8 +600,7 @@ function fmtLocal(h,m,lon){ const off=getOffsetHours(lon); const lh=((h+off)%24+
 // ═══════════════════════════════════════════════════════════
 function render(){
   const interval=+document.getElementById('interval').value||4;
-  const cLat=+document.getElementById('centerLat').value;
-  const cLon=+document.getElementById('centerLon').value;
+  const [cLat,cLon]=parseLatLon(document.getElementById('centerLatLon').value);
   const geoR=+document.getElementById('geoRadius').value||2000;
 
   // clear
@@ -664,16 +726,42 @@ function updateStats(interval){
 function checkSteps(){
   const warn=document.getElementById('stepWarning');
   if(points.length<2){warn.style.display='none';return;}
-  const R=6371000;let maxD=0,maxI=-1;
+  let maxKm=0,maxI=-1;
   for(let i=0;i<points.length;i++){
     const a=points[i],b=points[(i+1)%points.length];
-    const dlat=(b.lat-a.lat)*Math.PI/180,dlon=(b.lon-a.lon)*Math.PI/180;
-    const x=Math.sin(dlat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dlon/2)**2;
-    const d=R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
-    if(d>maxD){maxD=d;maxI=i;}
+    const d=haversineKm(a.lat,a.lon,b.lat,b.lon);
+    if(d>maxKm){maxKm=d;maxI=i;}
   }
-  if(maxD>1000){warn.style.display='block';warn.textContent=`⚠ Step ${maxI+1}→${(maxI+1)%points.length+1}: ${Math.round(maxD)}m (>1km cooldown risk!)`;}
-  else warn.style.display='none';
+  const cd=calcCooldown(maxKm);
+  const risky=maxKm>1;
+  const distStr=maxKm<1?(maxKm*1000).toFixed(0)+'m':maxKm.toFixed(1)+'km';
+  warn.style.display='block';
+  warn.style.color=risky?'var(--danger)':'var(--muted)';
+  warn.textContent=`${risky?'⚠ ':''}Longest step ${maxI+1}→${(maxI+1)%points.length+1}: ${distStr} · cooldown: ${fmtCooldown(cd)}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// COOLDOWN CALCULATOR
+// ═══════════════════════════════════════════════════════════
+function calcCooldownBetween(){
+  const [lat1,lon1]=parseLatLon(document.getElementById('cdA').value);
+  const [lat2,lon2]=parseLatLon(document.getElementById('cdB').value);
+  const res=document.getElementById('cdResult');
+  if(isNaN(lat1)||isNaN(lon1)||isNaN(lat2)||isNaN(lon2)){
+    showToast('Enter valid coordinates for both points',true);return;
+  }
+  const km=haversineKm(lat1,lon1,lat2,lon2);
+  const cd=calcCooldown(km);
+  const distStr=km<1?(km*1000).toFixed(0)+' m':km<10?km.toFixed(2)+' km':km.toFixed(1)+' km';
+  const cdColor=km>1?'var(--danger)':'var(--green)';
+  res.style.display='block';
+  const disclaimer=km>15?`<br><span style="color:var(--muted);font-size:.62rem;">Estimation only · 2 min safety margin included</span>`:'';
+  res.innerHTML=
+    `<span style="color:var(--muted)">Distance</span><br>`+
+    `<span style="color:var(--text);font-size:.95rem;font-weight:700;">${distStr}</span><br><br>`+
+    `<span style="color:var(--muted)">Cooldown</span><br>`+
+    `<span style="color:${cdColor};font-size:1.2rem;font-weight:700;">${fmtCooldown(cd)}</span>`+
+    disclaimer;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -818,8 +906,7 @@ function pasteReplace(){
 function exportJSON(){
   if(!points.length){showToast('No points to export!',true);return;}
   const interval=+document.getElementById('interval').value||4;
-  const cLat=+document.getElementById('centerLat').value;
-  const cLon=+document.getElementById('centerLon').value;
+  const [cLat,cLon]=parseLatLon(document.getElementById('centerLatLon').value);
   const geoR=+document.getElementById('geoRadius').value||2000;
   const shards=[];
 
@@ -855,8 +942,7 @@ document.getElementById('fileInput').addEventListener('change',e=>{
   reader.onload=ev=>{
     try{
       const data=JSON.parse(ev.target.result);
-      if(data.latitude)document.getElementById('centerLat').value=data.latitude;
-      if(data.longitude)document.getElementById('centerLon').value=data.longitude;
+      if(data.latitude!=null&&data.longitude!=null)document.getElementById('centerLatLon').value=data.latitude+', '+data.longitude;
       if(data.radius)document.getElementById('geoRadius').value=data.radius;
       if(data.rotator24Shards?.length){
         const shards=data.rotator24Shards;
@@ -1015,7 +1101,7 @@ function showToast(msg,error=false){
 // ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
-['shardRadius','interval','centerLat','centerLon','geoRadius'].forEach(id=>{
+['shardRadius','interval','centerLatLon','geoRadius'].forEach(id=>{
   document.getElementById(id).addEventListener('change',render);
 });
 setMode('interval');

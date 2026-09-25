@@ -519,10 +519,9 @@ let dragPointIdx=-1;
 // ═══════════════════════════════════════════════════════════
 // MAP SETUP
 // ═══════════════════════════════════════════════════════════
-const darkTile  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-const lightTile = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+const osmTile = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const map = L.map('map',{zoomControl:true}).setView([20,0],2);
-let tileLayer = L.tileLayer(darkTile,{attribution:'© OpenStreetMap © CARTO',maxZoom:19}).addTo(map);
+let tileLayer = L.tileLayer(osmTile,{attribution:'© OpenStreetMap contributors',maxZoom:19}).addTo(map);
 map.on('click', e => addPoint(e.latlng.lat, e.latlng.lng));
 
 // ═══════════════════════════════════════════════════════════
@@ -532,8 +531,6 @@ function toggleTheme(){
   isDark=!isDark;
   document.body.classList.toggle('light',!isDark);
   document.getElementById('themeBtn').textContent=isDark?'🌙':'☀️';
-  map.removeLayer(tileLayer);
-  tileLayer=L.tileLayer(isDark?darkTile:lightTile,{attribution:'© OpenStreetMap © CARTO',maxZoom:19}).addTo(map);
 }
 
 // ═══════════════════════════════════════════════════════════
